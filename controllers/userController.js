@@ -3,7 +3,20 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import axios from "axios";
+import nodemailer from "nodemailer";
+import Otp from "../models/otp.js";
 dotenv.config();
+
+const transporter = nodemailer.createTransport({
+	service: "gmail",
+	host: "smtp.gmail.com",
+	port: 587,
+	secure: false,
+	auth: {
+		user: "gaurawawickramasinghe@gmail.com",
+		pass: process.env.GMAIL_APP_PASSWORD,
+	},
+});
 
 export function createUser(req, res) {
 	const data = req.body;
@@ -15,7 +28,6 @@ export function createUser(req, res) {
 		firstName: data.firstName,
 		lastName: data.lastName,
 		password: hashedPassword,
-		role: data.role,
 	});
 
 	user.save().then(() => {
@@ -28,7 +40,6 @@ export function createUser(req, res) {
 export function loginUser(req, res) {
 	const email = req.body.email;
 	const password = req.body.password;
-	console.log("Login attempt for email: " + email);
 	User.find({ email: email }).then((users) => {
 		if (users[0] == null) {
 			res.status(404).json({
@@ -36,7 +47,13 @@ export function loginUser(req, res) {
 			});
 		} else {
 			const user = users[0];
-			console.log(user)
+
+			if (user.isBlocked) {
+				res.status(403).json({
+					message: "User is blocked. Contact admin.",
+				});
+				return;
+			}
 
 			const isPasswordCorrect = bcrypt.compareSync(password, user.password);
 
@@ -78,7 +95,7 @@ export function isAdmin(req) {
 
 	return true;
 }
-//add try catch for async-await
+
 export function getUser(req, res) {
 	if (req.user == null) {
 		res.status(401).json({
@@ -167,3 +184,91 @@ export async function googleLogin(req, res) {
 	}
 }
 
+export async function validateOTPAndUpdatePassword(req, res) {
+	try {
+		const otp = req.body.otp;
+		const newPassword = req.body.newPassword;
+		const email = req.body.email;
+
+		const otpRecord = await Otp.findOne({ email: email, otp: otp });
+		if (otpRecord == null) {
+			res.status(400).json({
+				message: "Invalid OTP",
+			});
+			return;
+		}
+
+		await Otp.deleteMany({ email: email });
+
+		const hashedPassword = bcrypt.hashSync(newPassword, 10);
+
+		await User.updateOne(
+			{ email: email },
+			{
+				$set : {password: hashedPassword, isEmailVerified: true} ,
+			}
+		);
+		res.json({
+			message: "Password updated successfully",
+		});
+	} catch (error) {
+		res.status(500).json({
+			message: "Failed to update password",
+			error: error.message,
+		});
+	}
+}
+
+export async function sendOTP(req, res) {
+	try {
+		const email = req.params.email;
+		const user = await User.findOne({
+			email: email,
+		});
+		if (user == null) {
+			res.status(404).json({
+				message: "User not found",
+			});
+			return;
+		}
+
+		await Otp.deleteMany({
+			email: email,
+		});
+
+		//generate random 6 digit otp
+		const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+		const otp = new Otp({
+			email: email,
+			otp: otpCode,
+		});
+
+		await otp.save();
+
+		const message = {
+			from: "gaurawaWickramasinghe@gmail.com",
+			to: email,
+			subject: "Your OTP Code",
+			text: "Your OTP code is " + otpCode,
+		};
+
+		transporter.sendMail(message, (err, info) => {
+			if (err) {
+				res.status(500).json({
+					message: "Failed to send OTP",
+					error: err.message,
+				});
+			} else {
+				res.json({
+					message: "OTP sent successfully",
+				});
+			}
+		});
+	} catch (error) {
+		res.status(500).json({
+			message: "Failed to send OTP",
+			error: error.message,
+		});
+	}
+}
