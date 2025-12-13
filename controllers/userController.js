@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import axios from "axios";
 import nodemailer from "nodemailer";
-import Otp from "../models/otp.js";
+import Otp from "../models/Otp.js";
 dotenv.config();
 
 const transporter = nodemailer.createTransport({
