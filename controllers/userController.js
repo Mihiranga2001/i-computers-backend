@@ -272,3 +272,58 @@ export async function sendOTP(req, res) {
 		});
 	}
 }
+
+export async function getAllUsers(req, res) {
+	if(!isAdmin(req)){
+		res.status(401).json({
+			message : "Unauthorized"
+		})
+		return
+	}
+
+	try{
+		const users = await User.find()
+		res.json(users)
+	}catch(error){
+		res.status(500).json({
+			message : "Error fetching users",
+			error : error.message
+		})
+	}
+}
+
+export async function updateUserStatus(req, res) {
+	if (!isAdmin(req)) {
+		res.status(401).json({
+			message: "Unauthorized",
+		});
+		return;
+	}
+
+	const email = req.params.email;
+
+	if(req.user.email === email){
+		res.status(400).json({
+			message : "Admin cannot change their own status"
+		})
+		return
+	}
+
+	const isBlocked = req.body.isBlocked;
+
+	try {
+		await User.updateOne(
+			{ email: email },
+			{ $set: { isBlocked: isBlocked } }
+		);
+		res.json({
+			message: "User status updated successfully",
+		});
+	}
+	catch (error) {
+		res.status(500).json({
+			message: "Error updating user status",
+			error: error.message,
+		});
+	}
+}
