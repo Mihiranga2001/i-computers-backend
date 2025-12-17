@@ -70,7 +70,7 @@ app.use("/api/products",productRouter)
 app.use("/api/orders",orderRouter)
 
 
-app.listen(5000 , 
+app.listen(3000 , 
     ()=>{
         console.log("server is running")
     }
