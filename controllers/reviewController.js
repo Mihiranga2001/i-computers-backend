@@ -56,3 +56,19 @@ export async function deleteReview(req, res) {
         res.status(500).json({ message: "Error deleting review", error: err.message });
     }
 }
+
+export async function getAllReviews(req, res) {
+    if (!isAdmin(req)) {
+        return res.status(403).json({ message: "Admin only" });
+    }
+
+    try {
+        const reviews = await Review.find().sort({ createdAt: -1 });
+        res.json(reviews);
+    } catch (err) {
+        res.status(500).json({
+            message: "Error fetching all reviews",
+            error: err.message
+        });
+    }
+}
